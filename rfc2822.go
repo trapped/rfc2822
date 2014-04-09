@@ -1,161 +1,175 @@
-// This package implements an RFC2822 parser.  It does not (yet )support
-// the entire standard.
+//package rfc2822 implements an RFC2822 parser. It does not (yet) support the entire standard.
 package rfc2822
 
 import (
-    "bufio"
-    "fmt"
-    "io"
-    "os"
-    "strings"
+	"bufio"
+	"errors"
+	"fmt"
+	"io"
+	"io/ioutil"
+	"os"
+	"strconv"
+	"strings"
 )
-
-const (
-    CR   = "\r"
-    LF   = "\n"
-    CRLF = "\r\n"
-
-    NOTFOUND = 1
-)
-
-// An Error can represent any printable error condition.
-type Error struct {
-    Type int
-    args []string
-}
-
-func (err Error) String() string {
-    switch err.Type {
-    case NOTFOUND:
-        return fmt.Sprintf("%s not found", strings.Join(err.args, " "))
-    }
-    return "Invalid Error Type"
-}
-
-// ParseError represents an error encountered parsing a message.
-type ParseError struct {
-    lineNo int
-    reason string
-}
-
-func (err ParseError) String() string {
-    return fmt.Sprintf("Error parsing input at line %d: %s",
-        err.lineNo,
-        err.reason)
-}
 
 type Header struct {
-    key, value string
+	Key, Value string
 }
 
-// A Message type encapsulates one RFC 2822 message.
+//Message type encapsulates one RFC 2822 message.
 type Message struct {
-    headers map[string][]Header
-    body    []string
+	Headers map[string][]Header
+	Body    []string
 }
 
-// GetHeader retrieves an unstructured header value by its name, or an error
-// if the requested header does not exist.  If more than one header of a 
-// given name exists, the last one is returned.
-func (msg *Message) GetHeader(header string) (val string, err os.Error) {
-    if val, good := msg.headers[strings.ToLower(header)]; good {
-        return val[len(val)-1].value, nil
-    }
-    return val, Error{NOTFOUND, []string{"header", fmt.Sprintf("'%s'", header)}}
+//GetHeader retrieves an unstructured header value by its name, or an error
+//if the requested header does not exist. If more than one header of a
+//given name exists, the last one is returned.
+func (msg *Message) GetHeader(header string) (string, error) {
+	if val, good := msg.Headers[strings.ToLower(header)]; good {
+		return val[len(val)-1].Value, nil
+	}
+	return "", errors.New("NOTFOUND")
 }
 
-// GetHeaders returns one or more unstructured headers for a name, or an error
-// if the requested header does not exist.  When more than one header exists
-// for a name, they are returned in the order they appear in the message.
-func (msg *Message) GetHeaders(header string) (headers []Header, err os.Error) {
-    var good bool
-    if headers, good = msg.headers[strings.ToLower(header)]; good {
-        return
-    }
-    err = Error{NOTFOUND, []string{"header", fmt.Sprintf("'%s'", header)}}
-    return
+//AddHeader adds a single-line header to the message.
+func (msg *Message) AddHeader(name string, value string) {
+	msg.Headers[strings.ToLower(name)] = append(msg.Headers[strings.ToLower(name)], Header{Key: name, Value: value})
 }
 
-// GetBody retrieves a message body if it exists, or an error if not.
-func (msg *Message) GetBody() (val string, err os.Error) {
-    if len(msg.body) < 1 {
-        return val, Error{NOTFOUND, []string{"message body"}}
-    }
-    return strings.Join(msg.body, " "), nil
+//AddMultiHeader adds a multi-line header to the message. Indentation is automatic.
+func (msg *Message) AddMultiHeader(name string, value []string) {
+	val := ""
+	for i := 0; i < len(value); i++ {
+		if i != 0 {
+			val += "\r\n        " //8 spaces or 2 tabs
+		}
+		val += value[i]
+	}
+	msg.Headers[strings.ToLower(name)] = append(msg.Headers[strings.ToLower(name)], Header{Key: name, Value: val})
 }
 
-// ReadFile parses an RFC 2822 formatted input and returns a Message type.
-func Read(reader io.Reader) (msg *Message, err os.Error) {
-    buff := bufio.NewReader(reader)
-    headers := make(map[string][]Header)
+//GetHeaders returns one or more unstructured headers for a name, or an error
+//if the requested header does not exist. When more than one header exists
+//for a name, they are returned in the order they appear in the message.
+func (msg *Message) GetHeaders(header string) ([]Header, error) {
+	if headers, good := msg.Headers[strings.ToLower(header)]; good {
+		return headers, nil
+	}
+	return []Header{}, errors.New("NOTFOUND")
+}
 
-    var (
-        key, val, lowerKey string
-        lineNo             int
-        inContent          bool = false
-        body               []string
-    )
+//GetBody retrieves a message body if it exists, or an error if not.
+func (msg *Message) GetBody() (string, error) {
+	if len(msg.Body) < 1 {
+		return "", errors.New("NOTFOUND")
+	}
+	return strings.Join(msg.Body, " "), nil
+}
 
-    for {
-        line, ioerr := buff.ReadString('\n')
-        lineNo++
+//Text returns a string representing the whole message.
+func (msg *Message) Text() string {
+	result := ""
+	for _, header := range msg.Headers {
+		for _, head := range header {
+			result += head.Key + ": "
+			result += head.Value + "\r\n"
+		}
+	}
+	if result != "" {
+		result += "\r\n"
+	}
+	result += strings.Join(msg.Body, "")
+	return result
+}
 
-        if ioerr != nil {
-            if ioerr != os.EOF {
-                return nil, ioerr
-            }
-            if len(line) == 0 {
-                break
-            }
-        }
+//ReadFile parses an RFC 2822 formatted input and returns a Message type.
+func Read(reader io.Reader) (*Message, error) {
+	//buff := bufio.NewReader(reader)
+	headers := make(map[string][]Header)
 
-        switch {
-        case inContent:
-            body = append(body, strings.TrimSpace(line))
-        case strings.HasPrefix(line, LF) || strings.HasPrefix(line, CRLF):
-            inContent = true
-            continue
-        case strings.HasPrefix(line, " "): // a field-body continuation?
-            if len(key) == 0 {
-                return nil, ParseError{lineNo, "No match for continuation"}
-            }
+	var (
+		key, val, lowerKey string
+		lineNo             int
+		inContent          bool = false
+		body               []string
+	)
 
-            // Concatenate onto previous value
-            val = fmt.Sprintf("%s\n %s", val, strings.TrimSpace(line))
-            field := Header{key, val}
-            headers[lowerKey][len(headers[lowerKey])-1] = field
-        default:
-            if i := strings.Index(line, ":"); i > 0 {
-                key = strings.TrimSpace(line[0:i])
-                lowerKey = strings.ToLower(key)
-                val = strings.TrimSpace(line[i+1:])
-                field := Header{key, val}
+	//Remove junk (white lines) at the start of the message - empty messages are not contemplated
+	bufd, err := ioutil.ReadAll(reader)
+	if err != nil {
+		return nil, err
+	}
+	cleaned := strings.TrimLeft(string(bufd), "\r\n\t\v\f\b\a ")
 
-                if _, has := headers[lowerKey]; has {
-                    headers[lowerKey] = append(headers[lowerKey], field)
-                } else {
-                    headers[lowerKey] = []Header{field}
-                }
-            } else {
-                return nil, ParseError{lineNo, "Cannot parse field"}
-            }
-        }
-    }
+	buff := bufio.NewReader(strings.NewReader(cleaned))
 
-    msg = &Message{headers, body}
-    return msg, nil
+	for {
+		line, ioerr := buff.ReadString('\n')
+		lineNo++
+
+		if ioerr != nil {
+			if ioerr != io.EOF {
+				return nil, ioerr
+			}
+			if len(line) == 0 {
+				break
+			}
+		}
+
+		switch {
+
+		case inContent:
+			body = append(body, line)
+
+		case strings.HasPrefix(line, "\n") || strings.HasPrefix(line, "\r\n"):
+			inContent = true
+			continue
+
+		case strings.HasPrefix(line, " ") || strings.HasPrefix(line, "\t"): //a field-body continuation?
+			if len(key) == 0 {
+				return nil, errors.New(strconv.Itoa(lineNo) + ":no match for continuation")
+			}
+			// Concatenate onto previous value
+			val = fmt.Sprintf("%s\r\n        %s", val, strings.TrimSpace(line))
+			field := Header{key, val}
+			headers[lowerKey][len(headers[lowerKey])-1] = field
+
+		default:
+			if i := strings.Index(line, ":"); i > 0 {
+				key = strings.TrimSpace(line[0:i])
+				lowerKey = strings.ToLower(key)
+				val = strings.TrimSpace(line[i+1:])
+				field := Header{key, val}
+
+				if _, has := headers[lowerKey]; has {
+					headers[lowerKey] = append(headers[lowerKey], field)
+				} else {
+					headers[lowerKey] = []Header{field}
+				}
+			} else {
+				return nil, errors.New(strconv.Itoa(lineNo) + ":cannot parse field")
+			}
+		}
+	}
+
+	return &Message{headers, body}, nil
+}
+
+func ReadString(text string) (*Message, error) {
+	return Read(strings.NewReader(text))
 }
 
 // ReadFile parses an RFC 2822 formatted file and returns a Message type.
-func ReadFile(fname string) (msg *Message, err os.Error) {
-    var file *os.File
+func ReadFile(fname string) (*Message, error) {
+	file, err := os.Open(fname)
+	defer file.Close()
 
-    if file, err = os.Open(fname); err != nil {
-        return msg, err
-    }
-    defer file.Close()
+	if err != nil {
+		return nil, err
+	}
 
-    return Read(file)
+	return Read(file)
 }
 
 // vi: ai sw=4 ts=4 tw=0 et

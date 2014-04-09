@@ -1,0 +1,33 @@
+Delivered-To: example@example.com
+X-Received: by 0.0.0.0 with SMTP id 1234567890abcdef.123.abc.1a;
+        Mon, 1 Jan 2014 00:00:0 -0700 (PDT)
+Return-Path: <noreply@example.com>
+Date: Mon, 1 Jan 2014 00:00:00 GMT
+From: Example <noreply@example.com>
+Subject: Examples
+Example: line 0
+        line 1
+        line 2
+Received: by 0.0.0.0 with SMTP id 1234567890abcdef;
+        Mon, 1 Jan 2014 00:00:00 -0700 (PDT)
+Received: from example.com (mail.example.com. [0.0.0.0])
+        by mx.example.com with ESMTPS id 1234567890abcdef.123.abc
+        for <example@example.com>
+        (version=TLSv1 cipher=ECDHE-RSA-RC4-SHA bits=128/128);
+        Mon, 1 Jan 2014 00:00:00 -0700 (PDT)
+Received: from localhost.localdomain (servers.example.com [0.0.0.0] (may be forged))
+        by example.com (8.14.5/8.13.8) with ESMTP id 1234567890abcdef
+        for <example@example.com>; Mon, 1 Jan 2014 00:00:00 GMT
+Received-SPF: pass (example.com: domain of noreply@example.com designates 0.0.0.0 as permitted sender) client-ip=0.0.0.0;
+Authentication-Results: mx.example.com;
+        spf=pass (example.com: domain of noreply@example.com designates 0.0.0.0 as permitted sender) smtp.mail=noreply@example.com
+Message-Id: <1234567890abcdef.123abc@example.com>
+To: Example <example@example.com>
+Sender: Example <noreply@example.com>
+
+Hi there! We do examples!
+Read more at http://example.com
+
+----------------------------------------
+This was an automated message.  To stop receiving future emails, please unsubscribe here:
+http://example.com/
