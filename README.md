@@ -1,18 +1,18 @@
 RFC2822 Parser For Go
 ---------------------
 This a simple [rfc2822](http://www.ietf.org/rfc/rfc2822.txt) parser for 
-[Go](http://golang.org).  It does not (currently )support the full standard.
+[Go](http://golang.org).  It does not (yet) support the full standard.
 
 
 ### Installation
-`goinstall github.com/eevans/rfc2822`
+`go get github.com/trapped/rfc2822`
 
 ### Usage
 ```go
 package main
 
 import (
-    "github.com/eevans/rfc2822"
+    "github.com/trapped/rfc2822"
     "os"
     "fmt"
 )
@@ -33,6 +33,8 @@ func main() {
         fmt.Println(err)
         os.Exit(3)
     }
+
+    /*...*/rfc2822.ReadString("an email")/*...*/
 
     fmt.Printf("Subject: %s\n", value)
 }
