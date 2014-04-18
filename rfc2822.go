@@ -67,6 +67,17 @@ func (msg *Message) GetBody() (string, error) {
 	return strings.Join(msg.Body, " "), nil
 }
 
+func (msg *Message) HeadersText() string {
+	result := ""
+	for _, header := range msg.Headers {
+		for _, head := range header {
+			result += head.Key + ": "
+			result += head.Value + "\r\n"
+		}
+	}
+	return result
+}
+
 //Text returns a string representing the whole message.
 func (msg *Message) Text() string {
 	result := ""
